@@ -12,6 +12,7 @@ from gerrychain.updaters import cut_edges
 from gerrychain.tree import bipartition_tree, find_balanced_edge_cuts_memoization
 
 from pathlib import Path
+import time
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -176,7 +177,7 @@ my_updaters.update(election_updaters)
 
 # enacted plan
 enacted_plan = Partition(graph,
-                           df["CD116FP"],
+                           df["CD"],
                            my_updaters)
 
 #checking if its working 
@@ -251,61 +252,32 @@ def accept_lower_ces(partition):
         else: 
             return True
 
-
-def combined_acceptance(partition):
-    # takes in a partition
-    
-    if partition['comp_dists'] > partition.parent['comp_dists']:
-        comp = True
-    
-    if partition['comp_dists'] < partition.parent['comp_dists']:
-        comp = False
-    
-    closeness_value_new = min([abs(x-.5) for x in partition["PRE20"].percents("Democratic") if abs(x-.5)>.05])
-    closeness_value_old = min([abs(x-.5) for x in partition.parent["PRE20"].percents("Democratic") if abs(x-.5)>.05])
-
-    if closeness_value_new <= closeness_value_old:
-        comp = True
-    if closeness_value_new > closeness_value_old:
-        alpha = random.random()
-        if alpha < 0.5:
-            comp = False
-        else:
-            comp = True
-
-    if len(partition['cut_edges']) > len(partition.parent['cut_edges']):
-        ces = False
-    if len(partition['cut_edges']) < len(partition.parent['cut_edges']):
-        ces = True
-    
-    ces_new = len(partition['cut_edges'])
-    ces_old = len(partition.parent['cut_edges'])
-
-    if ces_new <= ces_old:
-        ces = True
-    if ces_new > ces_old:
-        alpha = random.random()
-        if alpha < 0.5:
-            ces = False
-        else: 
-            ces = True
-    
+def accept_lower_splt(partition):
     if partition['county_splits'] > partition.parent['county_splits']:
-        splt = False
+        return False
     if partition['county_splits'] < partition.parent['county_splits']:
-        splt = True
+        return True
 
     splt_new = partition['county_splits']
     splt_old = partition.parent['county_splits']
 
     if splt_new <= splt_old:
-        splt = True
+        return True
     if splt_new > splt_old:
         alpha = random.random()
         if alpha < 0.5:
-            splt = False
+            return False
         else: 
-            splt = True
+            return True
+
+def combined_acceptance(partition):
+    # takes in a partition
+    
+    comp = accept_closer_competitive(partition)
+
+    ces = accept_lower_ces(partition)
+    
+    splt = accept_lower_splt(partition)
     
     total = splt + ces + comp
     if total < 3:
@@ -423,9 +395,9 @@ county_proposal = partial(
     region_surcharge = {"COUNTYFP20":1},
     method = partial(bipartition_tree,max_attempts= 10000,  warn_attempts = 1000,  allow_pair_reselection = True)
 )
-Path("Outputs/PA_Testing_01/").mkdir(parents=True, exist_ok=True)
+Path("Output/PA_Testing_01/").mkdir(parents=True, exist_ok=True)
 
-Path("Outputs/PA_Testing_02/").mkdir(parents=True, exist_ok=True)
+Path("Output/PA_Testing_02/").mkdir(parents=True, exist_ok=True)
 
 #markov chain definition and calling it to run
 #also writes stuff to file
@@ -541,8 +513,8 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
         prop_coal_scores.append(minority_scores["proportional_coalitions"])
 
     #end of stuff addedd
-
+print("Starting at" + time.time())
 run_markov_chain(first_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], "Output/PA_Testing_01/Testing_01", combined_acceptance, num_steps=100)
-print("First chain done")
+print("First chain done at" + time.time())
 run_markov_chain(second_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], "Output/PA_Testing_02/Testing_02", combined_acceptance, num_steps=100)
-print("Second chain done")
+print("Second chain done at" + time.time())
