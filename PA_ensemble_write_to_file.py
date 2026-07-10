@@ -235,40 +235,29 @@ def accept_higher_pp(partition):
             return True
 
 def accept_lower_ces(partition):
-    if len(partition['cut_edges']) > len(partition.parent['cut_edges']):
-        return False
-    if len(partition['cut_edges']) < len(partition.parent['cut_edges']):
+    
+    if len(partition['cut_edges']) <= len(partition.parent['cut_edges']):
         return True
     
-    ces_new = len(partition['cut_edges'])
-    ces_old = len(partition.parent['cut_edges'])
-
-    if ces_new <= ces_old:
-        return True
-    if ces_new > ces_old:
+    if len(partition['cut_edges']) > len(partition.parent['cut_edges']):
         alpha = random.random()
         if alpha < 0.5:
             return False
         else: 
             return True
+        
 
 def accept_lower_splt(partition):
+    if partition['county_splits'] <= partition.parent['county_splits']:
+        return True
+    
     if partition['county_splits'] > partition.parent['county_splits']:
-        return False
-    if partition['county_splits'] < partition.parent['county_splits']:
-        return True
-
-    splt_new = partition['county_splits']
-    splt_old = partition.parent['county_splits']
-
-    if splt_new <= splt_old:
-        return True
-    if splt_new > splt_old:
         alpha = random.random()
         if alpha < 0.5:
             return False
         else: 
             return True
+
 
 def combined_acceptance(partition):
     # takes in a partition
