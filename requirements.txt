@@ -8,7 +8,6 @@ ImageIO==2.37.3
 kiwisolver==1.5.0
 lazy-loader==0.5
 matplotlib==3.10.8
-maup==2.0.3
 networkx==3.6.1
 numpy==2.4.3
 packaging==26.0
