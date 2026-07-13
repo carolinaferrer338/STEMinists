@@ -1,4 +1,3 @@
-#imports 
 from gerrychain import (GeographicPartition, Partition, Graph, MarkovChain,
                         proposals, updaters, constraints, accept, Election)
 
@@ -12,6 +11,7 @@ from gerrychain.updaters import cut_edges
 
 from gerrychain.tree import bipartition_tree, find_balanced_edge_cuts_memoization
 
+from pathlib import Path
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -27,11 +27,9 @@ import random
 import numpy as np
 
 #graph and reads files 
-
-n = 4 #number of districts
-
 graph = Graph.from_json("state_data/ut/ut.json")
 df = gpd.read_file("state_data/ut/ut.shp")
+n = 4
 
 ideal_population = df['TOTPOP'].sum()/n
 df['C_X'] = df.centroid.x
@@ -124,11 +122,14 @@ def count_spanning(graph):
 def county_splits(partition, df=df):
     df["current"] = df.index.map(partition.assignment)
 
-    counties = sum(df.groupby("CountyID20")['current'].nunique()>1)
+    counties = sum(df.groupby("COUNTYFP20")['current'].nunique()>1)
     return counties
 
 def comp_dist(partition):
     return sum([abs(x-.5)<.05 for x in partition['PRE20'].percents("Democratic")])
+
+def avg_pp(partition):
+    return sum([x for x in polsby_popper(partition).values()])/n
 
 def least_democratic(partition):
     return min(partition['PRE20'].percents("Democratic"))
@@ -149,7 +150,8 @@ my_updaters = {
     "PP":polsby_popper,
     "county_splits": county_splits,
     "comp_dists": comp_dist,
-    "least_demo": least_democratic
+    "least_demo": least_democratic,
+    "avg_pp": avg_pp
 }
 
 elections = [
@@ -172,6 +174,10 @@ my_updaters.update({"HISP":Election("HISP",{"HISP": "HISP", "non_HISP": "non_HIS
 # save percentages
 my_updaters.update(election_updaters)
 
+# enacted plan
+enacted_plan = Partition(graph,
+                           df["CD"],
+                           my_updaters)
 
 #checking if its working 
 CON_Part = GeographicPartition(graph,"CD",my_updaters)
@@ -179,22 +185,11 @@ CON_Part = GeographicPartition(graph,"CD",my_updaters)
 print(CON_Part['county_splits'])
 print(CON_Part['population'])
 print(CON_Part['comp_dists'])
-print(CON_Part['least_demo'])
+print(CON_Part['least_demo']) 
 print(sum([1/x for x in polsby_popper(CON_Part).values()])/n)
 print([(x-ideal_population)/ideal_population for x in CON_Part['population'].values()])
 print(sorted(CON_Part['PRE20'].percents("Democratic")))
 print(sorted(CON_Part['NH_BLACK'].percents("NH_BLACK")))
-
-
-#starting with a seed
-cd_dict =  recursive_tree_part(graph,range(n),ideal_population,'TOTPOP', epsilon = 0.02)
-
-tree_partition = GeographicPartition(graph,cd_dict,my_updaters)
-
-plt.plot(figsize=[14,10])
-nx.draw(graph, pos = {x:(graph.nodes()[x]['C_X'],graph.nodes()[x]['C_Y']) for x in graph.nodes()},node_color=[cd_dict[x] for x in graph.nodes()],
-        cmap='tab20',node_size=15)
-
 
 #competativeness contraint for accepting 
 def accept_closer_competitive(partition):
@@ -212,69 +207,211 @@ def accept_closer_competitive(partition):
         return True
     if closeness_value_new > closeness_value_old:
         alpha = random.random()
+        if alpha < 0.5:
+            return False
+        else:
+            return True
+
+#competativeness contraint for accepting 
+def accept_higher_pp(partition):
+
+    if partition['avg_pp'] > partition.parent['avg_pp']:
+        return True
+    
+    if partition['avg_pp'] < partition.parent['avg_pp']:
+        return False
+    
+    avg_pp_new = sum([1/x for x in polsby_popper(partition).values()])/n
+    avg_pp_old = sum([1/x for x in polsby_popper(partition.parent).values()])/n
+
+    if avg_pp_new >= avg_pp_old:
+        return True
+    if avg_pp_new < avg_pp_old:
+        alpha = random.random()
         if alpha < 0.99:
             return False
         else:
             return True
 
-
-#creating Markov chains 
-print(f"The initial tree seed splits {tree_partition['county_splits']} counties.")
+def accept_lower_ces(partition):
+    if len(partition['cut_edges']) > len(partition.parent['cut_edges']):
+        return False
+    if len(partition['cut_edges']) < len(partition.parent['cut_edges']):
+        return True
     
-county_proposal = partial(
-    recom,
-    pop_col = "TOTPOP",
-    pop_target=ideal_population,
-    epsilon=0.02,
-    node_repeats=2,
-    region_surcharge = {"CountyID20":1},
-    method = partial(bipartition_tree,max_attempts= 10000,  warn_attempts = 1000,  allow_pair_reselection = True)
-)
+    ces_new = len(partition['cut_edges'])
+    ces_old = len(partition.parent['cut_edges'])
 
-second_recom_chain = MarkovChain(
-    proposal=county_proposal,
-    constraints=[],
-    accept=accept.always_accept,
-    initial_state=tree_partition,
-    total_steps=1000
-)
+    if ces_new <= ces_old:
+        return True
+    if ces_new > ces_old:
+        alpha = random.random()
+        if alpha < 0.5:
+            return False
+        else: 
+            return True
 
-temp = 0
-for part in second_recom_chain:
-    temp +=1
-    if temp %10 == 0:
-        print(temp)
-        
-    if part['county_splits'] < 10:
-        break    
+
+def combined_acceptance(partition):
+    # takes in a partition
+    
+    if partition['comp_dists'] > partition.parent['comp_dists']:
+        comp = True
+    
+    if partition['comp_dists'] < partition.parent['comp_dists']:
+        comp = False
+    
+    closeness_value_new = min([abs(x-.5) for x in partition["PRE20"].percents("Democratic") if abs(x-.5)>.05])
+    closeness_value_old = min([abs(x-.5) for x in partition.parent["PRE20"].percents("Democratic") if abs(x-.5)>.05])
+
+    if closeness_value_new <= closeness_value_old:
+        comp = True
+    if closeness_value_new > closeness_value_old:
+        alpha = random.random()
+        if alpha < 0.5:
+            comp = False
+        else:
+            comp = True
+
+    if len(partition['cut_edges']) > len(partition.parent['cut_edges']):
+        ces = False
+    if len(partition['cut_edges']) < len(partition.parent['cut_edges']):
+        ces = True
+    
+    ces_new = len(partition['cut_edges'])
+    ces_old = len(partition.parent['cut_edges'])
+
+    if ces_new <= ces_old:
+        ces = True
+    if ces_new > ces_old:
+        alpha = random.random()
+        if alpha < 0.5:
+            ces = False
+        else: 
+            ces = True
+    
+    if partition['county_splits'] > partition.parent['county_splits']:
+        splt = False
+    if partition['county_splits'] < partition.parent['county_splits']:
+        splt = True
+
+    splt_new = partition['county_splits']
+    splt_old = partition.parent['county_splits']
+
+    if splt_new <= splt_old:
+        splt = True
+    if splt_new > splt_old:
+        alpha = random.random()
+        if alpha < 0.5:
+            splt = False
+        else: 
+            splt = True
+    
+    total = splt + ces + comp
+    if total < 3:
+        return False
+    else: 
+        return True
 
 def county_constraint(partition):
-    return partition['county_splits'] < 13
+    return partition['county_splits'] < 50
 
-third_recom_chain = MarkovChain(
-    proposal=county_proposal,
-    constraints=county_constraint,
-    accept=accept_closer_competitive,
-    initial_state=part,
-    total_steps=10_000
+def pp_constraint(partition): 
+
+    return sum([1/x for x in polsby_popper(partition).values()])/n > 3
+
+ces_constraint = constraints.UpperBound(
+    lambda p: len(p["cut_edges"]), 1.5 * len(enacted_plan["cut_edges"])
 )
-temp = 0
-cds = []
-for part in third_recom_chain:
-    temp +=1
-    cds.append(min([abs(x-.5) for x in part["PRE20"].percents("Democratic") if abs(x-.5)>.05]))
-    print(cds[-1])
-    if temp %10 == 0:
-        print(temp)
+
+def competitiveness_constraint(partition):
+
+    return sum([abs(x-.5)<.05 for x in partition['PRE20'].percents("Democratic")]) > 0
+#starting with a seed
+def create_init_state():
+    cd_dict =  recursive_tree_part(graph,range(n),ideal_population,'TOTPOP', epsilon = 0.02)
+
+    tree_partition = GeographicPartition(graph,cd_dict,my_updaters)
+
+    plt.plot(figsize=[14,10])
+    nx.draw(graph, pos = {x:(graph.nodes()[x]['C_X'],graph.nodes()[x]['C_Y']) for x in graph.nodes()},node_color=[cd_dict[x] for x in graph.nodes()],
+            cmap='tab20',node_size=15)
+
+    #creating Markov chains 
+    print(f"The initial tree seed splits {tree_partition['county_splits']} counties.")
         
-    if part['comp_dists'] > 0:
-        break
+    county_proposal = partial(
+        recom,
+        pop_col = "TOTPOP",
+        pop_target=ideal_population,
+        epsilon=0.02,
+        node_repeats=2,
+        region_surcharge = {"COUNTYFP20":1},
+        method = partial(bipartition_tree,max_attempts= 10000,  warn_attempts = 1000,  allow_pair_reselection = True)
+    )
 
+    second_recom_chain = MarkovChain(
+        proposal=county_proposal,
+        constraints=[],
+        accept=accept.always_accept,
+        initial_state=tree_partition,
+        total_steps=1000
+    )
 
-new_starting_seed = GeographicPartition(graph, dict(part.assignment), my_updaters)
+    temp = 0
+    for part in second_recom_chain:
+        temp +=1
+        if temp %10 == 0:
+            print(temp)
+            
+        if part['county_splits'] < 13:
+            break   
 
-print(f"The new tree seed splits {new_starting_seed['county_splits']} counties.")
+    third_recom_chain = MarkovChain(
+        proposal=county_proposal,
+        constraints= county_constraint,
+        accept=accept_closer_competitive,
+        initial_state=part,
+        total_steps=10_000
+    )
+    temp = 0
+    cds = []
+    for part in third_recom_chain:
+        temp +=1
+        cds.append(min([abs(x-.5) for x in part["PRE20"].percents("Democratic") if abs(x-.5)>.05]))
+        print(cds[-1])
+        if temp %10 == 0:
+            print(temp)
+            
+        if part['comp_dists'] > 0:
+            break
 
+    fourth_recom_chain = MarkovChain(
+        proposal=county_proposal,
+        constraints= [county_constraint, competitiveness_constraint],
+        accept=accept_higher_pp,
+        initial_state=part,
+        total_steps=10_000
+    )
+
+    temp = 0
+    avg_pps = []
+    for part in fourth_recom_chain:
+        temp +=1
+        avg_pps.append(sum([x for x in polsby_popper(part).values()])/n)
+        print(avg_pps[-1])
+        if temp %10 == 0:
+            print(temp)
+            
+        if pp_constraint(part) == True:
+            break
+
+    new_starting_seed = GeographicPartition(graph, dict(part.assignment), my_updaters)
+    print(f"The new tree seed splits {new_starting_seed['county_splits']} counties.")
+    return new_starting_seed
+
+first_seed = create_init_state()
+second_seed = create_init_state()
 
 #contraints and proposal
 county_proposal = partial(
@@ -283,27 +420,16 @@ county_proposal = partial(
     pop_target=ideal_population,
     epsilon=0.01,
     node_repeats=2,
-    region_surcharge = {"CountyID20":1},
+    region_surcharge = {"COUNTYFP20":1},
     method = partial(bipartition_tree,max_attempts= 10000,  warn_attempts = 1000,  allow_pair_reselection = True)
 )
+Path("Outputs/PA_Testing_01/").mkdir(parents=True, exist_ok=True)
 
-def pp_constraint(partition): 
-
-    return sum([1/x for x in polsby_popper(partition).values()])/n > 4
-
-
-def county_constraint(partition):
-
-    return partition['county_splits'] < 11
-
-def competitiveness_constraint(partition):
-
-    return sum([abs(x-.5)<.05 for x in partition['PRE20'].percents("Democratic")]) > 0
-
+Path("Outputs/PA_Testing_02/").mkdir(parents=True, exist_ok=True)
 
 #markov chain definition and calling it to run
 #also writes stuff to file
-def run_markov_chain(proposal_function, constraint_choices, file_name, accept_function=accept.always_accept, seed=new_starting_seed, num_steps=100_000):
+def run_markov_chain(seed, proposal_function, constraint_choices, file_name, accept_function, num_steps=100_000):
 
     second_recom_chain = MarkovChain(
         proposal=proposal_function,
@@ -416,7 +542,7 @@ def run_markov_chain(proposal_function, constraint_choices, file_name, accept_fu
 
     #end of stuff addedd
 
-run_markov_chain(county_proposal, [pp_constraint, county_constraint, competitiveness_constraint], "Output/", num_steps=10_000)
+run_markov_chain(first_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], "Output/PA_Testing_01/Testing_01", combined_acceptance, num_steps=100)
 print("First chain done")
-run_markov_chain(county_proposal, [pp_constraint, county_constraint, competitiveness_constraint], "Output/ ", num_steps=10_000)
+run_markov_chain(second_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], "Output/PA_Testing_02/Testing_02", combined_acceptance, num_steps=100)
 print("Second chain done")
