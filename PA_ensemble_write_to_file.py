@@ -307,7 +307,7 @@ ces_constraint = constraints.UpperBound(
 
 def competitiveness_constraint(partition):
 
-    return sum([abs(x-.5)<.05 for x in partition['PRE20'].percents("Democratic")]) > 0
+    return sum([abs(x-.5)<.05 for x in partition['PRE20'].percents("Democratic")]) > -1
 #starting with a seed
 def create_init_state():
     cd_dict =  recursive_tree_part(graph,range(N_CONG_DISTS),ideal_population,'TOTPOP', epsilon = 0.02)
