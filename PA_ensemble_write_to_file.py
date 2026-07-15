@@ -13,7 +13,7 @@ from gerrychain.tree import bipartition_tree, find_balanced_edge_cuts_memoizatio
 
 from pathlib import Path
 import time
-
+from datetime import datetime
 import geopandas as gpd
 import matplotlib.pyplot as plt
 
@@ -24,15 +24,35 @@ import csv
 import pandas as pd
 
 import json
+import os
+import sys
 import random
 import numpy as np
+import pickle as pkl
+
+from tqdm import tqdm
 
 #graph and reads files 
-graph = Graph.from_json("state_data/pa/pa.json")
-df = gpd.read_file("state_data/pa/pa.shp")
-n = 17
+STATE_ABBR = sys.argv[1]
+COUNTY_FIELD_NAME = sys.argv[2]
+N_CONG_DISTS = int(sys.argv[3])
+INITIAL_COUNTY_SPLITS = {
+    'pa': 13,
+    'ma': 9,
+    'ut': 10,
+}[STATE_ABBR]
 
-ideal_population = df['TOTPOP'].sum()/n
+MAIN_CHAIN_STEPS = 140_000
+TREE_PROPOSAL_RETRIES = 2
+
+OUTPUT_DIR = f"Output/{STATE_ABBR}_convergence_{MAIN_CHAIN_STEPS}"
+
+graph = Graph.from_json(f"state_data/{STATE_ABBR}/{STATE_ABBR}.json")
+df = gpd.read_file(f"state_data/{STATE_ABBR}/{STATE_ABBR}.shp")
+
+
+
+ideal_population = df['TOTPOP'].sum()/N_CONG_DISTS
 df['C_X'] = df.centroid.x
 df['C_Y'] = df.centroid.y
 
@@ -123,14 +143,14 @@ def count_spanning(graph):
 def county_splits(partition, df=df):
     df["current"] = df.index.map(partition.assignment)
 
-    counties = sum(df.groupby("COUNTYFP20")['current'].nunique()>1)
+    counties = sum(df.groupby(COUNTY_FIELD_NAME)['current'].nunique()>1)
     return counties
 
 def comp_dist(partition):
     return sum([abs(x-.5)<.05 for x in partition['PRE20'].percents("Democratic")])
 
 def avg_pp(partition):
-    return sum([x for x in polsby_popper(partition).values()])/n
+    return sum([x for x in polsby_popper(partition).values()])/N_CONG_DISTS
 
 def least_democratic(partition):
     return min(partition['PRE20'].percents("Democratic"))
@@ -187,7 +207,7 @@ print(CON_Part['county_splits'])
 print(CON_Part['population'])
 print(CON_Part['comp_dists'])
 print(CON_Part['least_demo'])
-print(sum([1/x for x in polsby_popper(CON_Part).values()])/n)
+print(sum([1/x for x in polsby_popper(CON_Part).values()])/N_CONG_DISTS)
 print([(x-ideal_population)/ideal_population for x in CON_Part['population'].values()])
 print(sorted(CON_Part['PRE20'].percents("Democratic")))
 print(sorted(CON_Part['NH_BLACK'].percents("NH_BLACK")))
@@ -208,7 +228,7 @@ def accept_closer_competitive(partition):
         return True
     if closeness_value_new > closeness_value_old:
         alpha = random.random()
-        if alpha < 0.5:
+        if alpha < 1:
             return False
         else:
             return True
@@ -222,8 +242,8 @@ def accept_higher_pp(partition):
     if partition['avg_pp'] < partition.parent['avg_pp']:
         return False
     
-    avg_pp_new = sum([1/x for x in polsby_popper(partition).values()])/n
-    avg_pp_old = sum([1/x for x in polsby_popper(partition.parent).values()])/n
+    avg_pp_new = sum([1/x for x in polsby_popper(partition).values()])/N_CONG_DISTS
+    avg_pp_old = sum([1/x for x in polsby_popper(partition.parent).values()])/N_CONG_DISTS
 
     if avg_pp_new >= avg_pp_old:
         return True
@@ -241,7 +261,7 @@ def accept_lower_ces(partition):
     
     if len(partition['cut_edges']) > len(partition.parent['cut_edges']):
         alpha = random.random()
-        if alpha < 0.5:
+        if alpha < 1:
             return False
         else: 
             return True
@@ -253,7 +273,7 @@ def accept_lower_splt(partition):
     
     if partition['county_splits'] > partition.parent['county_splits']:
         alpha = random.random()
-        if alpha < 0.5:
+        if alpha < 1:
             return False
         else: 
             return True
@@ -279,7 +299,7 @@ def county_constraint(partition):
 
 def pp_constraint(partition): 
 
-    return sum([1/x for x in polsby_popper(partition).values()])/n > 3
+    return sum([1/x for x in polsby_popper(partition).values()])/N_CONG_DISTS > 3
 
 ces_constraint = constraints.UpperBound(
     lambda p: len(p["cut_edges"]), 1.5 * len(enacted_plan["cut_edges"])
@@ -290,7 +310,7 @@ def competitiveness_constraint(partition):
     return sum([abs(x-.5)<.05 for x in partition['PRE20'].percents("Democratic")]) > 0
 #starting with a seed
 def create_init_state():
-    cd_dict =  recursive_tree_part(graph,range(n),ideal_population,'TOTPOP', epsilon = 0.02)
+    cd_dict =  recursive_tree_part(graph,range(N_CONG_DISTS),ideal_population,'TOTPOP', epsilon = 0.02)
 
     tree_partition = GeographicPartition(graph,cd_dict,my_updaters)
 
@@ -307,11 +327,11 @@ def create_init_state():
         pop_target=ideal_population,
         epsilon=0.02,
         node_repeats=2,
-        region_surcharge = {"COUNTYFP20":1},
-        method = partial(bipartition_tree,max_attempts= 10000,  warn_attempts = 1000,  allow_pair_reselection = True)
+        region_surcharge = {COUNTY_FIELD_NAME:1},
+        method = partial(bipartition_tree,max_attempts= TREE_PROPOSAL_RETRIES,  warn_attempts = 1000,  allow_pair_reselection = True)
     )
 
-    second_recom_chain = MarkovChain(
+    initial_county_chain = MarkovChain(
         proposal=county_proposal,
         constraints=[],
         accept=accept.always_accept,
@@ -320,15 +340,11 @@ def create_init_state():
     )
 
     temp = 0
-    for part in second_recom_chain:
-        temp +=1
-        if temp %10 == 0:
-            print(temp)
-            
-        if part['county_splits'] < 13:
+    for part in tqdm(initial_county_chain):       
+        if part['county_splits'] < INITIAL_COUNTY_SPLITS:
             break   
 
-    third_recom_chain = MarkovChain(
+    initial_competitiveness_chain = MarkovChain(
         proposal=county_proposal,
         constraints= county_constraint,
         accept=accept_closer_competitive,
@@ -337,13 +353,8 @@ def create_init_state():
     )
     temp = 0
     cds = []
-    for part in third_recom_chain:
-        temp +=1
-        cds.append(min([abs(x-.5) for x in part["PRE20"].percents("Democratic") if abs(x-.5)>.05]))
-        print(cds[-1])
-        if temp %10 == 0:
-            print(temp)
-            
+    for part in tqdm(initial_competitiveness_chain):
+        cds.append(min([abs(x-.5) for x in part["PRE20"].percents("Democratic") if abs(x-.5)>.05]))            
         if part['comp_dists'] > 0:
             break
 
@@ -357,12 +368,9 @@ def create_init_state():
 
     temp = 0
     avg_pps = []
-    for part in fourth_recom_chain:
-        temp +=1
-        avg_pps.append(sum([x for x in polsby_popper(part).values()])/n)
+    for part in tqdm(fourth_recom_chain):
+        avg_pps.append(sum([x for x in polsby_popper(part).values()])/N_CONG_DISTS)
         print(avg_pps[-1])
-        if temp %10 == 0:
-            print(temp)
             
         if pp_constraint(part) == True:
             break
@@ -371,6 +379,12 @@ def create_init_state():
     print(f"The new tree seed splits {new_starting_seed['county_splits']} counties.")
     return new_starting_seed
 
+#FIRST_SEED_FNAME = "cmon_I_hope_this_works.pickle"
+#if os.path.isfile(FIRST_SEED_FNAME):
+#    first_seed = pkl.load(open(FIRST_SEED_FNAME, 'rb'))
+#else:
+#    first_seed = create_init_state()
+#    pkl.dump(first_seed, open(FIRST_SEED_FNAME, 'wb'))
 first_seed = create_init_state()
 second_seed = create_init_state()
 
@@ -381,12 +395,13 @@ county_proposal = partial(
     pop_target=ideal_population,
     epsilon=0.01,
     node_repeats=2,
-    region_surcharge = {"COUNTYFP20":1},
+    region_surcharge = {COUNTY_FIELD_NAME:1},
     method = partial(bipartition_tree,max_attempts= 10000,  warn_attempts = 1000,  allow_pair_reselection = True)
 )
-Path("Output/PA_Testing_01/").mkdir(parents=True, exist_ok=True)
 
-Path("Output/PA_Testing_02/").mkdir(parents=True, exist_ok=True)
+Path(f"{OUTPUT_DIR}_1/").mkdir(parents=True, exist_ok=True)
+
+Path(f"{OUTPUT_DIR}_2/").mkdir(parents=True, exist_ok=True)
 
 #markov chain definition and calling it to run
 #also writes stuff to file
@@ -418,15 +433,11 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
     prop_coal_scores = []
     #end of what i added
 
-    temp = 0
-
-    for part in second_recom_chain:
-
-        temp += 1
-
-        if temp %10_000 == 0:
+    pbar = tqdm(total=num_steps)
+    for temp, part in tqdm(enumerate(second_recom_chain)):
+        pbar.update(1)
+        if temp % 1_000 == 0:
         
-            print("Step Number", temp)
             ad = dict(part.assignment)
 
             with open(f"{file_name}_{temp}.json", "w") as file:
@@ -485,7 +496,7 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
         egs.append(efficiency_gap(part['PRE20']))
         pbs.append(partisan_bias(part['PRE20']))
         dvp.append(sorted(part['PRE20'].percents("Democratic")))
-        pps.append(sum([1/x for x in polsby_popper(part).values()])/n)
+        pps.append(sum([1/x for x in polsby_popper(part).values()])/N_CONG_DISTS)
         bvp.append(sorted(part['NH_BLACK'].percents("NH_BLACK")))
         mbvp.append(max(bvp[-1]))
         wins.append(part['PRE20'].wins("Democratic"))
@@ -502,8 +513,8 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
         prop_coal_scores.append(minority_scores["proportional_coalitions"])
 
     #end of stuff addedd
-print("Starting at" + time.time())
-run_markov_chain(first_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], "Output/PA_Testing_01/Testing_01", combined_acceptance, num_steps=100)
-print("First chain done at" + time.time())
-run_markov_chain(second_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], "Output/PA_Testing_02/Testing_02", combined_acceptance, num_steps=100)
-print("Second chain done at" + time.time())
+print("Starting at", datetime.fromtimestamp(time.time()))
+run_markov_chain(first_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], f"{OUTPUT_DIR}_1/ensemble_1", combined_acceptance, num_steps=MAIN_CHAIN_STEPS)
+print("First chain done at", datetime.fromtimestamp(time.time()))
+run_markov_chain(second_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], f"{OUTPUT_DIR}_2/ensemble_2", combined_acceptance, num_steps=MAIN_CHAIN_STEPS)
+print("Second chain done at", datetime.fromtimestamp(time.time()))
