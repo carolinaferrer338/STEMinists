@@ -393,7 +393,7 @@ county_proposal = partial(
     recom,
     pop_col="TOTPOP",
     pop_target=ideal_population,
-    epsilon=0.01,
+    epsilon=0.02,
     node_repeats=2,
     region_surcharge = {COUNTY_FIELD_NAME:1},
     method = partial(bipartition_tree,max_attempts= 10000,  warn_attempts = 1000,  allow_pair_reselection = True)
