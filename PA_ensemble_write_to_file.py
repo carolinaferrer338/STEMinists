@@ -290,7 +290,7 @@ def accept_lower_ces(partition):
         else: 
             return True
         
-
+'''
 def accept_lower_splt(partition):
     if partition['county_splits'] <= partition.parent['county_splits']:
         return True
@@ -301,7 +301,7 @@ def accept_lower_splt(partition):
             return False
         else: 
             return True
-
+'''
 
 def combined_acceptance(partition):
     # takes in a partition
@@ -310,10 +310,10 @@ def combined_acceptance(partition):
 
     ces = accept_lower_ces(partition)
     
-    splt = accept_lower_splt(partition)
+    # sp = accept_lower_splt(partition)
     
-    total = splt + ces + comp
-    if total < 3:
+    total = ces + comp
+    if total < 2:
         return False
     else: 
         return True
@@ -352,7 +352,7 @@ def create_init_state():
         pop_target=ideal_population,
         epsilon=0.02,
         node_repeats=2,
-        region_surcharge = {COUNTY_FIELD_NAME:1},
+        region_surcharge = {COUNTY_FIELD_NAME:COUNTY_SPLITS_ALPHA},
         method = partial(bipartition_tree,max_attempts= TREE_PROPOSAL_RETRIES,  warn_attempts = 1000,  allow_pair_reselection = True)
     )
 
@@ -414,7 +414,7 @@ county_proposal = partial(
     pop_target=ideal_population,
     epsilon=0.02,
     node_repeats=2,
-    region_surcharge = {COUNTY_FIELD_NAME:1},
+    region_surcharge = {COUNTY_FIELD_NAME:COUNTY_SPLITS_ALPHA},
     method = partial(bipartition_tree,max_attempts= 10000,  warn_attempts = 1000,  allow_pair_reselection = True)
 )
 
