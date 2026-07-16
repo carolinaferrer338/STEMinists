@@ -37,13 +37,13 @@ from tqdm import tqdm
 MAIN_CHAIN_STEPS = 200_000
 TREE_PROPOSAL_RETRIES = 2
 
-#alpha value settings
-COMPETITIVENESS_ALPHA = 1
-CUT_EDGES_ALPHA = 1
-COUNTY_SPLITS_ALPHA = 1
-
 #state informaiton
 STATE_ABBR = sys.argv[1]
+
+#alpha value settings
+COMPETITIVENESS_ALPHA = sys.argv[2]
+CUT_EDGES_ALPHA = sys.argv[3]
+COUNTY_SPLITS_ALPHA = sys.argv[4]
 
 INITIAL_COUNTY_SPLITS = {
     'pa': 13, 
@@ -57,8 +57,8 @@ COUNTY_FIELD_NAME = {
     'pa': "COUNTYFP20", 
     'ma': "COUNTY",
     'ut': "CountyID20",
-    'tn': "COUNTYID18", 
-    'co': "COUNTYID20"
+    'tn': "COUNTYFP18", 
+    'co': "COUNTYFP20"
 }[STATE_ABBR]
 
 N_CONG_DISTS = {
