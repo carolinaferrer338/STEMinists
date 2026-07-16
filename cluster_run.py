@@ -1,8 +1,10 @@
 import subprocess
+import shlex
 import multiprocessing as mp
 
 def run_job(job_str):
-  subprocess.run(job_str)
+  cmd_args = shlex.split(job_str)
+  subprocess.run(cmd_args)
 
 jobs = []
 
