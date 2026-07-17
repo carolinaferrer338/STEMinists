@@ -35,15 +35,15 @@ from tqdm import tqdm
 
 #steps and proposals 
 MAIN_CHAIN_STEPS = 200_000
-TREE_PROPOSAL_RETRIES = 2
+TREE_PROPOSAL_RETRIES = 10_000
 
 #state informaiton
 STATE_ABBR = sys.argv[1]
 
 #alpha value settings
-COMPETITIVENESS_ALPHA = sys.argv[2]
-CUT_EDGES_ALPHA = sys.argv[3]
-COUNTY_SPLITS_ALPHA = sys.argv[4]
+COMPETITIVENESS_ALPHA = float(sys.argv[2])
+CUT_EDGES_ALPHA = float(sys.argv[3])
+COUNTY_SPLITS_ALPHA = float(sys.argv[4])
 
 INITIAL_COUNTY_SPLITS = {
     'pa': 13, 
