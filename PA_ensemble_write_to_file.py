@@ -534,6 +534,6 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
     #end of stuff addedd
 print("Starting at", datetime.fromtimestamp(time.time()))
 run_markov_chain(first_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], f"{OUTPUT_DIR}_1/ensemble_1", combined_acceptance, num_steps=MAIN_CHAIN_STEPS)
-print("First chain done at", datetime.fromtimestamp(time.time()))
+print(f"First chain of {OUTPUT_DIR} done at", datetime.fromtimestamp(time.time()))
 run_markov_chain(second_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], f"{OUTPUT_DIR}_2/ensemble_2", combined_acceptance, num_steps=MAIN_CHAIN_STEPS)
-print("Second chain done at", datetime.fromtimestamp(time.time()))
+print(f"Second chain of {OUTPUT_DIR} done at", datetime.fromtimestamp(time.time()))
