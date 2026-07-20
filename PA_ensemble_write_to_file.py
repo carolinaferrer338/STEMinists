@@ -65,7 +65,7 @@ N_CONG_DISTS = {
     'pa': 17, 
     'ma': 9,
     'ut': 4,
-    'tn': 8, 
+    'tn': 9, 
     'co': 8
 }[STATE_ABBR]
 
