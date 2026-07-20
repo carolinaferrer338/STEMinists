@@ -35,15 +35,15 @@ from tqdm import tqdm
 
 #steps and proposals 
 MAIN_CHAIN_STEPS = 200_000
-TREE_PROPOSAL_RETRIES = 2
+TREE_PROPOSAL_RETRIES = 10_000
 
 #state informaiton
 STATE_ABBR = sys.argv[1]
 
 #alpha value settings
-COMPETITIVENESS_ALPHA = sys.argv[2]
-CUT_EDGES_ALPHA = sys.argv[3]
-COUNTY_SPLITS_ALPHA = sys.argv[4]
+COMPETITIVENESS_ALPHA = float(sys.argv[2])
+CUT_EDGES_ALPHA = float(sys.argv[3])
+COUNTY_SPLITS_ALPHA = float(sys.argv[4])
 
 INITIAL_COUNTY_SPLITS = {
     'pa': 13, 
@@ -65,7 +65,7 @@ N_CONG_DISTS = {
     'pa': 17, 
     'ma': 9,
     'ut': 4,
-    'tn': 8, 
+    'tn': 9, 
     'co': 8
 }[STATE_ABBR]
 
@@ -534,6 +534,6 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
     #end of stuff addedd
 print("Starting at", datetime.fromtimestamp(time.time()))
 run_markov_chain(first_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], f"{OUTPUT_DIR}_1/ensemble_1", combined_acceptance, num_steps=MAIN_CHAIN_STEPS)
-print("First chain done at", datetime.fromtimestamp(time.time()))
+print(f"First chain of {OUTPUT_DIR} done at", datetime.fromtimestamp(time.time()))
 run_markov_chain(second_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], f"{OUTPUT_DIR}_2/ensemble_2", combined_acceptance, num_steps=MAIN_CHAIN_STEPS)
-print("Second chain done at", datetime.fromtimestamp(time.time()))
+print(f"Second chain of {OUTPUT_DIR} done at", datetime.fromtimestamp(time.time()))
