@@ -20,11 +20,5 @@ for state in ['co', 'ut', 'pa', 'ma']:
        for county_alpha in [0, 0.2, 0.4, 0.6, 0.8]: # county
            jobs.append(f"python ./PA_ensemble_write_to_file.py {state} {comp_alpha} {cut_alpha} {county_alpha}")
 
-state = 'co'
-comp_alpha = 1
-cut_alpha = 1
-county_alpha = 1
-
-jobs.append(f"python ./PA_ensemble_write_to_file.py {state} {comp_alpha} {cut_alpha} {county_alpha}")
 pool = mp.Pool(len(jobs))
 pool.map(run_job, jobs)
