@@ -444,6 +444,7 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
     mbvp = []
     wins = []
     cds = []
+    ces = []
 
     #i added this
     opp_scores = []
@@ -455,7 +456,7 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
     pbar = tqdm(total=num_steps)
     for temp, part in tqdm(enumerate(second_recom_chain)):
         pbar.update(1)
-        if temp % 1_000 == 0:
+        if temp % 10_000 == 0:
         
             ad = dict(part.assignment)
 
@@ -475,7 +476,7 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
             plt.close()
 
 
-            ndf = pd.DataFrame({"CountySplits":cs, "MM":mms, 'EG':egs,'PB':pbs,'DWins':wins,'PP':pps,'Comp45-55':cds})
+            ndf = pd.DataFrame({"CountySplits":cs, "MM":mms, 'EG':egs,'PB':pbs,'DWins':wins,'PP':pps,'Comp45-55':cds, 'CES'; ces})
 
             mmd = pd.DataFrame({"Opportunity districts":opp_scores, "Coalition districts":coal_scores, 'Proportional Opportunity':prop_opp_scores,'Proportional Coalition':prop_coal_scores})
 
@@ -502,6 +503,7 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
             mbvp = []
             wins = []
             cds = []
+            ces = []
 
             #I added thisisss
             opp_scores = []
@@ -520,7 +522,7 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
         mbvp.append(max(bvp[-1]))
         wins.append(part['PRE20'].wins("Democratic"))
         cds.append(sum([abs(x-.5)<.05 for x in part['PRE20'].percents("Democratic")]))
-
+        ces.append(part['cut_edges'])
 
     ##i added this for mmd
         demos_by_district = get_demos_by_district(part)
