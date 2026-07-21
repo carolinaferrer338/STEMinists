@@ -476,7 +476,7 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
             plt.close()
 
 
-            ndf = pd.DataFrame({"CountySplits":cs, "MM":mms, 'EG':egs,'PB':pbs,'DWins':wins,'PP':pps,'Comp45-55':cds, 'CES'; ces})
+            ndf = pd.DataFrame({"CountySplits":cs, "MM":mms, 'EG':egs,'PB':pbs,'DWins':wins,'PP':pps,'Comp45-55':cds, 'CES': ces})
 
             mmd = pd.DataFrame({"Opportunity districts":opp_scores, "Coalition districts":coal_scores, 'Proportional Opportunity':prop_opp_scores,'Proportional Coalition':prop_coal_scores})
 
