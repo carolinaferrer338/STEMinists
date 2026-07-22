@@ -4,6 +4,8 @@ from collections import Counter
 import numpy as np
 import seaborn as sns
 
+
+# please commit
 max_steps = 199000
 step_size = 1000
 ts = [x * step_size for x in range(1, int(max_steps / step_size) + 1)]
