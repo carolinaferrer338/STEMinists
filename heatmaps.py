@@ -4,18 +4,68 @@ from collections import Counter
 import numpy as np
 import seaborn as sns
 
-
-# please commit
 max_steps = 199000
 step_size = 1000
 ts = [x * step_size for x in range(1, int(max_steps / step_size) + 1)]
+
+def gelman_rubin_rhat(a1, a2):
+    n = min(len(a1), len(a2))
+
+    if n < 2:
+        return np.nan   
+
+    x1 = a1[:n]
+    x2 = a2[:n]
+
+    mu1, mu2 = np.mean(x1), np.mean(x2)
+    s1_sq, s2_sq = np.var(x1, ddof=1), np.var(x2, ddof=1)
+
+    W = (s1_sq + s2_sq) / 2
+    B = n * ((mu1 - mu2) ** 2) / 2
+
+    if W == 0:
+        return 1.0
+
+    V_hat = ((n - 1) / n) * W + (B / n)
+
+    if V_hat < 0:
+        V_hat = 0
+
+    R_hat = np.sqrt(V_hat / W)
+
+    return R_hat
+
+def rhat_average(ensembles, scores):
+                           
+    rhat_results = []
+
+    for score in scores:
+
+        e1_df = pd.read_csv(f'/Users/carolinaferrer/Downloads/tn_fixed/{ensembles[0]}/ensemble_1chain_outputs_1000.csv', usecols = [score])
+        e2_df = pd.read_csv(f'/Users/carolinaferrer/Downloads/tn_fixed/{ensembles[1]}/ensemble_2chain_outputs_1000.csv', usecols = [score])
+        
+        for i in range(len(ensembles)):
+            for j in range(i+1, len(ensembles)):
+
+                rhat = gelman_rubin_rhat(e1_df, e2_df)
+                rhat_results.append(rhat)
+
+    total = rhat_results.sum()
+    count = len(rhat_results)
+
+    return total/count
+
+
+
+
+
 
 def generate_heat(state):
     comp_alpha_range = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     ce_alpha_range = [0.5, 0.6, 0.7, 0.8, 0.9]
     cty_alpha_range = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
     metric_cols = ["PB", "CountySplits", "PP"]
-    metric_dict = {"PB": {'color':"Blues", 'vmax':-0.2, 'vmin':0}, "CountySplits": {'color':"Greens", 'vmax':36, 'vmin':6}, "PP": {'color':"Purples", 'vmax':7.2, 'vmin':3.5}}
+    metric_dict = {"PB": {'color':"Blues", 'vmax':-0.2, 'vmin':0}, "CountySplits": {'color':"Greens", 'vmax':36, 'vmin':6}, "PP": {'color':"Purples", 'vmax':7.2, 'vmin':3.5}, "R-Hat": {'color': "coolwarm", 'vmax': 1.05, 'vmin': 0.95}}
 
     for metric_col in metric_cols:
         rows = []
@@ -23,33 +73,48 @@ def generate_heat(state):
         for comp_alpha in comp_alpha_range:
             for ce_alpha in ce_alpha_range:
                 for cty_alpha in cty_alpha_range:
-                    for num in [1, 2]:
 
-                        total = 0
-                        count = 0
-
-                        try:
-                            df = pd.read_csv(
-                                f'/Users/carolinaferrer/Downloads/tn_fixed/{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_200000_{num}/ensemble_{num}chain_outputs_1000.csv',
-                                usecols=[metric_col]
-                            )
-                        except FileNotFoundError:
-                            print(f"Missing file for {comp_alpha=}, {ce_alpha=}, {cty_alpha=}, {num=}")
-                            continue
-
-                        total += df[metric_col].sum()
-                        count += len(df)
-
-                        if count == 0:
-                            continue
+                    if metric_col == "R-Hat":
+                        ensembles = [f'{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_200000_1' , f'{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_200000_2']
+                        rhat_ave = rhat_average(ensembles, metric_col)
 
                         rows.append({
                             "comp_alpha": comp_alpha,
                             "ce_alpha": ce_alpha,
                             "cty_alpha": cty_alpha,
-                            "avg_dw": total / count,
-                            "ensemble": num
+                            "avg_dw": rhat_ave,
+                            "ensemble": None 
                         })
+
+                    else:
+                                               
+                        for num in [1, 2]:
+
+                            total = 0
+                            count = 0
+
+                            try:
+                                df = pd.read_csv(
+                                    f'/Users/carolinaferrer/Downloads/tn_fixed/{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_200000_{num}/ensemble_{num}chain_outputs_1000.csv',
+                                    usecols=[metric_col]
+                                )
+                            except FileNotFoundError:
+                                print(f"Missing file for {comp_alpha=}, {ce_alpha=}, {cty_alpha=}, {num=}")
+                                continue
+
+                            total += df[metric_col].sum()
+                            count += len(df)
+
+                            if count == 0:
+                                continue
+
+                            rows.append({
+                                "comp_alpha": comp_alpha,
+                                "ce_alpha": ce_alpha,
+                                "cty_alpha": cty_alpha,
+                                "avg_dw": total / count,
+                                "ensemble": num
+                            })
 
         summary = pd.DataFrame(rows)
 
