@@ -34,6 +34,7 @@ def gelman_rubin_rhat(a1, a2):
     V_hat = ((n - 1) / n) * W + (B / n)
 
     if V_hat < 0:
+
         V_hat = 0
 
     R_hat = np.sqrt(V_hat / W)
@@ -84,7 +85,9 @@ def generate_heat(state):
                     if metric_col == "R-Hat":
                         ensembles = [f'{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_200000_1' , f'{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_200000_2']
 
-                        rhat_ave = rhat_average(ensembles, metric_cols)
+                        metrics_for_rhat = ["PB", "CountySplits", "PP", "DWins", "EG"]
+                        
+                        rhat_ave = rhat_average(ensembles, metrics_for_rhat)
 
                         rows.append({
                             "comp_alpha": comp_alpha,
