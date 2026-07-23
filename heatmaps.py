@@ -64,7 +64,7 @@ def generate_heat(state):
     comp_alpha_range = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     ce_alpha_range = [0.5, 0.6, 0.7, 0.8, 0.9]
     cty_alpha_range = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
-    metric_cols = ["PB", "CountySplits", "PP"]
+    metric_cols = ["PB", "CountySplits", "PP", "R-Hat"]
     metric_dict = {"PB": {'color':"Blues", 'vmax':-0.2, 'vmin':0}, "CountySplits": {'color':"Greens", 'vmax':36, 'vmin':6}, "PP": {'color':"Purples", 'vmax':7.2, 'vmin':3.5}, "R-Hat": {'color': "coolwarm", 'vmax': 1.05, 'vmin': 0.95}}
 
     for metric_col in metric_cols:
