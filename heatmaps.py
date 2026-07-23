@@ -9,6 +9,11 @@ step_size = 1000
 ts = [x * step_size for x in range(1, int(max_steps / step_size) + 1)]
 
 def gelman_rubin_rhat(a1, a2):
+
+    #they data frame, gotta convert them to numpy
+    a1 = np.asarray(a1).flatten()
+    a2 = np.asarray(a2).flatten()
+
     n = min(len(a1), len(a2))
 
     if n < 2:
@@ -39,11 +44,16 @@ def rhat_average(ensembles, scores):
                            
     rhat_results = []
 
-    for score in scores:
 
-        e1_df = pd.read_csv(f'/Users/carolinaferrer/Downloads/tn_fixed/{ensembles[0]}/ensemble_1chain_outputs_1000.csv', usecols = [score])
-        e2_df = pd.read_csv(f'/Users/carolinaferrer/Downloads/tn_fixed/{ensembles[1]}/ensemble_2chain_outputs_1000.csv', usecols = [score])
-        
+
+    for score in scores:
+        try:
+            e1_df = pd.read_csv(f'/Users/carolinaferrer/Downloads/tn_fixed/{ensembles[0]}/ensemble_1chain_outputs_1000.csv', usecols = [score])
+            e2_df = pd.read_csv(f'/Users/carolinaferrer/Downloads/tn_fixed/{ensembles[1]}/ensemble_2chain_outputs_1000.csv', usecols = [score])
+        except FileNotFoundError: 
+            print(f"Missing file for {ensembles[0]}")
+            continue
+
         rhat = gelman_rubin_rhat(e1_df, e2_df)
         rhat_results.append(rhat)
 
@@ -169,8 +179,8 @@ def generate_heat(state):
             )
 
             heatmap_data = plot_df.pivot(
-                index="cty_alpha",
-                columns="comp_alpha",
+                index="comp_alpha",
+                columns="cty_alpha",
                 values="avg_dw"
             )
 
