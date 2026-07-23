@@ -44,11 +44,8 @@ def rhat_average(ensembles, scores):
         e1_df = pd.read_csv(f'/Users/carolinaferrer/Downloads/tn_fixed/{ensembles[0]}/ensemble_1chain_outputs_1000.csv', usecols = [score])
         e2_df = pd.read_csv(f'/Users/carolinaferrer/Downloads/tn_fixed/{ensembles[1]}/ensemble_2chain_outputs_1000.csv', usecols = [score])
         
-        for i in range(len(ensembles)):
-            for j in range(i+1, len(ensembles)):
-
-                rhat = gelman_rubin_rhat(e1_df, e2_df)
-                rhat_results.append(rhat)
+        rhat = gelman_rubin_rhat(e1_df, e2_df)
+        rhat_results.append(rhat)
 
     total = rhat_results.sum()
     count = len(rhat_results)
@@ -76,7 +73,8 @@ def generate_heat(state):
 
                     if metric_col == "R-Hat":
                         ensembles = [f'{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_200000_1' , f'{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_200000_2']
-                        rhat_ave = rhat_average(ensembles, metric_col)
+
+                        rhat_ave = rhat_average(ensembles, metric_cols)
 
                         rows.append({
                             "comp_alpha": comp_alpha,
