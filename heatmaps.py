@@ -169,8 +169,8 @@ def generate_heat(state):
             )
 
             heatmap_data = plot_df.pivot(
-                index="comp_alpha",
-                columns="cty_alpha",
+                index="cty_alpha",
+                columns="comp_alpha",
                 values="avg_dw"
             )
 
