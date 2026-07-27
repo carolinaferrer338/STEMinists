@@ -34,7 +34,7 @@ import pickle as pkl
 from tqdm import tqdm
 
 #steps and proposals 
-MAIN_CHAIN_STEPS = 200_000
+MAIN_CHAIN_STEPS = 210_000
 TREE_PROPOSAL_RETRIES = 10_000
 
 #state informaiton
