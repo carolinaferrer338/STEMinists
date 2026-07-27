@@ -13,7 +13,7 @@ for state in ['co', 'tn', 'pa', 'ut']:
                 for num in [1, 2]:
 
                     folder = Path(
-                        f"./{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_200000_{num}"
+                        f"Output/{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_200000_{num}"
                     )
 
                     files = sorted(
