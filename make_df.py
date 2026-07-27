@@ -13,7 +13,7 @@ for state in ['co', 'tn', 'pa', 'ut']:
                 for num in [1, 2]:
 
                     folder = Path(
-                        f"STEMinists/Output/{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_200000_{num}"
+                        f"./{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_200000_{num}"
                     )
 
                     files = sorted(
@@ -49,6 +49,6 @@ for state in ['co', 'tn', 'pa', 'ut']:
                     all_dfs.append(df)
 
 cube_df = pd.concat(all_dfs, ignore_index=True)
-cube_df.to_csv("STEMinists/Output/cube_df.csv", index=False)
+cube_df.to_csv("Output/cube_df.csv", index=False)
 
 print(f"Saved {len(cube_df):,} rows.")
