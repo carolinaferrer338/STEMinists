@@ -522,7 +522,7 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
         mbvp.append(max(bvp[-1]))
         wins.append(part['PRE20'].wins("Democratic"))
         cds.append(sum([abs(x-.5)<.05 for x in part['PRE20'].percents("Democratic")]))
-        ces.append(part['cut_edges'])
+        ces.append(len(part['cut_edges']))
 
     ##i added this for mmd
         demos_by_district = get_demos_by_district(part)
