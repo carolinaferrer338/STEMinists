@@ -14,7 +14,7 @@ for state in ['ma']:
                 for num in [1, 2]:
                     base = Path("Output")
                     folders = base.glob(
-                        f"Output/{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_*_{num}"
+                        f"{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_*_{num}"
                     )
                     for folder in folders:
                         files = sorted(
@@ -65,8 +65,8 @@ for state in ["co", "tn", "pa", "ut", "ma"]:
         [1, 2],
     ):
         base = Path("Output")
-        folder = base.glob(
-            f"Output/{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_*_{num}"
+        folders = base.glob(
+            f"{state}_{comp_alpha}-{ce_alpha}-{cty_alpha}_*_{num}"
         )
         for folder in folders:
             files = sorted(
