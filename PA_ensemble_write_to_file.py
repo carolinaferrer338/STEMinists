@@ -456,9 +456,14 @@ latest_2 = max(ensemble_2_files, key=get_step)
 print("Restarting ensemble 1 from:", latest_1)
 print("Restarting ensemble 2 from:", latest_2)
 
+node_type = type(next(iter(graph.nodes())))
+
 with open(latest_1, "r") as file:
     restart_dict_1 = json.load(file)
 
+restart_dict_1 = {
+    node_type(k): v for k, v in restart_dict_1.items()
+}
 first_seed = GeographicPartition(
     graph,
     restart_dict_1,
@@ -467,6 +472,9 @@ first_seed = GeographicPartition(
 
 with open(latest_2, "r") as file:
     restart_dict_2 = json.load(file)
+restart_dict_2 = {
+    node_type(k): v for k, v in restart_dict_2.items()
+}
 
 second_seed = GeographicPartition(
     graph,
