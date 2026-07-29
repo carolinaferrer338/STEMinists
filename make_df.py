@@ -29,8 +29,11 @@ for state in ["co", "tn", "pa", "ut", "ma"]:
                 print(f"No files found in {folder}")
                 continue
 
-            all_dfs.extend(pd.read_csv(file) for file in files)
-
+            for file in files:
+                try:
+                    all_dfs.append(pd.read_csv(file))
+                except pd.errors.EmptyDataError:
+                    print(f"Empty CSV: {file}")
 all_dem_percs = pd.concat(all_dfs, ignore_index=True)
 
 destination_df = pd.read_csv("Output/cube_df.csv")
