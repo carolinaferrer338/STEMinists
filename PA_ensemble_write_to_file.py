@@ -30,7 +30,7 @@ import sys
 import random
 import numpy as np
 import pickle as pkl
-
+import re 
 from tqdm import tqdm
 
 #steps and proposals 
@@ -70,7 +70,39 @@ N_CONG_DISTS = {
 }[STATE_ABBR]
 
 #file names and directory
-OUTPUT_DIR = f"Output/{STATE_ABBR}_{COMPETITIVENESS_ALPHA}-{CUT_EDGES_ALPHA}-{COUNTY_SPLITS_ALPHA}_{MAIN_CHAIN_STEPS}"
+
+base = Path("Output")
+prefix = f"{STATE_ABBR}_{COMPETITIVENESS_ALPHA}-{CUT_EDGES_ALPHA}-{COUNTY_SPLITS_ALPHA}_"
+
+matching_1 = [
+    d for d in base.iterdir()
+    if d.is_dir()
+    and d.name.startswith(prefix)
+    and d.name.endswith("_1")
+]
+
+matching_2 = [
+    d for d in base.iterdir()
+    if d.is_dir()
+    and d.name.startswith(prefix)
+    and d.name.endswith("_2")
+]
+
+LATEST_DIR_1 = max(
+    matching_1,
+    key=lambda d: int(d.name.split("_")[-2])
+)
+
+LATEST_DIR_2 = max(
+    matching_2,
+    key=lambda d: int(d.name.split("_")[-2])
+)
+
+OUTPUT_DIR_1 = LATEST_DIR_1
+OUTPUT_DIR_2 = LATEST_DIR_2
+
+print("Reading ensemble 1 from:", OUTPUT_DIR_1)
+print("Reading ensemble 2 from:", OUTPUT_DIR_2)
 
 graph = Graph.from_json(f"state_data/{STATE_ABBR}/{STATE_ABBR}.json")
 df = gpd.read_file(f"state_data/{STATE_ABBR}/{STATE_ABBR}.shp")
@@ -406,14 +438,43 @@ def competitiveness_constraint(partition):
 
 # first_seed = create_init_state()
 # second_seed = create_init_state()
+def get_step(filename):
+    return int(filename.stem.split("_")[-1])
 
-with open(f"{OUTPUT_DIR}/ensemble_1_190000.json", "r") as file:
+ensemble_1_files = list(OUTPUT_DIR_1.glob("ensemble_1_*.json"))
+ensemble_2_files = list(OUTPUT_DIR_2.glob("ensemble_2_*.json"))
+
+if not ensemble_1_files:
+    raise FileNotFoundError(f"No ensemble 1 files found in {LATEST_DIR_1}")
+
+if not ensemble_2_files:
+    raise FileNotFoundError(f"No ensemble 2 files found in {LATEST_DIR_2}")
+
+latest_1 = max(ensemble_1_files, key=get_step)
+latest_2 = max(ensemble_2_files, key=get_step)
+
+print("Restarting ensemble 1 from:", latest_1)
+print("Restarting ensemble 2 from:", latest_2)
+
+with open(latest_1, "r") as file:
     restart_dict_1 = json.load(file)
-first_seed = GeographicPartition(graph,restart_dict_1, my_updaters)
 
-with open(f"{OUTPUT_DIR}/ensemble_2_190000.json", "r") as file:
+first_seed = GeographicPartition(
+    graph,
+    restart_dict_1,
+    my_updaters
+)
+
+with open(latest_2, "r") as file:
     restart_dict_2 = json.load(file)
-second_seed = GeographicPartition(graph,restart_dict_2, my_updaters)
+
+second_seed = GeographicPartition(
+    graph,
+    restart_dict_2,
+    my_updaters
+)
+
+latest_step = max(get_step(latest_1), get_step(latest_2))
 
 #contraints and proposal
 county_proposal = partial(
@@ -426,13 +487,13 @@ county_proposal = partial(
     method = partial(bipartition_tree,max_attempts= 10000,  warn_attempts = 1000,  allow_pair_reselection = True)
 )
 
-Path(f"{OUTPUT_DIR}_1/").mkdir(parents=True, exist_ok=True)
+Path(f"{OUTPUT_DIR_1}/").mkdir(parents=True, exist_ok=True)
 
-Path(f"{OUTPUT_DIR}_2/").mkdir(parents=True, exist_ok=True)
+Path(f"{OUTPUT_DIR_2}/").mkdir(parents=True, exist_ok=True)
 
 #markov chain definition and calling it to run
 #also writes stuff to file
-def run_markov_chain(seed, proposal_function, constraint_choices, file_name, accept_function, num_steps=100_000):
+def run_markov_chain(seed, proposal_function, constraint_choices, file_name, accept_function, latest_step, num_steps=100_000):
 
     second_recom_chain = MarkovChain(
         proposal=proposal_function,
@@ -468,19 +529,19 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
         
             ad = dict(part.assignment)
 
-            with open(f"{file_name}_{(temp+ 190000)}.json", "w") as file:
+            with open(f"{file_name}_{(temp + latest_step)}.json", "w") as file:
                 json.dump(ad, file)
 
             plt.figure(figsize=(14,10))
             nx.draw(graph, pos = {x:(graph.nodes()[x]['C_X'],graph.nodes()[x]['C_Y']) for x in graph.nodes()},node_color=[ad[x] for x in graph.nodes()],
                 cmap='tab20b',node_size=15)
-            plt.savefig(f'./{file_name}network_plot_{(temp+ 190000)}.png')
+            plt.savefig(f'./{file_name}network_plot_{(temp+ latest_step)}.png')
             plt.close()
     
             df['current'] = df.index.map(ad)
             df.plot(column='current',cmap='tab20b')
             plt.axis('off')
-            plt.savefig(f'./{file_name}df_plot_{(temp+ 190000)}.png')
+            plt.savefig(f'./{file_name}df_plot_{(temp+ latest_step)}.png')
             plt.close()
 
 
@@ -488,11 +549,11 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
 
             mmd = pd.DataFrame({"Opportunity districts":opp_scores, "Coalition districts":coal_scores, 'Proportional Opportunity':prop_opp_scores,'Proportional Coalition':prop_coal_scores})
 
-            ndf.to_csv(f"./{file_name}chain_outputs_{(temp+ 190000)}.csv")
+            ndf.to_csv(f"./{file_name}chain_outputs_{(temp+ latest_step)}.csv")
 
-            mmd.to_csv(f"./{file_name}mmd_outputs_{(temp+ 190000)}.csv")
+            mmd.to_csv(f"./{file_name}mmd_outputs_{(temp+ latest_step)}.csv")
 
-            with open(f"./{file_name}_DemPercs_{(temp+ 190000)}.csv", "w") as tf1:
+            with open(f"./{file_name}_DemPercs_{(temp+ latest_step)}.csv", "w") as tf1:
                 writer = csv.writer(tf1, lineterminator="\n")
                 writer.writerows(dvp)
         
@@ -543,7 +604,7 @@ def run_markov_chain(seed, proposal_function, constraint_choices, file_name, acc
 
     #end of stuff addedd
 print("Starting at", datetime.fromtimestamp(time.time()))
-run_markov_chain(first_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], f"{OUTPUT_DIR}_1/ensemble_1", combined_acceptance, num_steps=MAIN_CHAIN_STEPS)
-print(f"First chain of {OUTPUT_DIR} done at", datetime.fromtimestamp(time.time()))
-run_markov_chain(second_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], f"{OUTPUT_DIR}_2/ensemble_2", combined_acceptance, num_steps=MAIN_CHAIN_STEPS)
-print(f"Second chain of {OUTPUT_DIR} done at", datetime.fromtimestamp(time.time()))
+run_markov_chain(first_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], f"{OUTPUT_DIR_1}/ensemble_1", combined_acceptance, latest_step, num_steps=MAIN_CHAIN_STEPS)
+print(f"First chain of {OUTPUT_DIR_1} done at", datetime.fromtimestamp(time.time()))
+run_markov_chain(second_seed, county_proposal, [ces_constraint, competitiveness_constraint, county_constraint], f"{OUTPUT_DIR_2}/ensemble_2", combined_acceptance, latest_step, num_steps=MAIN_CHAIN_STEPS)
+print(f"Second chain of {OUTPUT_DIR_2} done at", datetime.fromtimestamp(time.time()))
